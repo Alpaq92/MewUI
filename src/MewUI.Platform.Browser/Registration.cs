@@ -115,10 +115,21 @@ public static class BrowserPlatform
     public static void PointerCancel() => BrowserPlatformHost.Active?.PointerCancel();
 
     public static bool KeyDown(string code, int platformKey, ModifierKeys modifiers, bool isRepeat)
-        => BrowserPlatformHost.Active?.KeyDown(code, platformKey, modifiers, isRepeat) == true;
+        => KeyDown(code, platformKey, modifiers, isRepeat, key: null);
+
+    /// <summary>
+    /// Routes a key press. <paramref name="key"/> is the page's <c>KeyboardEvent.key</c>; passing it lets a letter key
+    /// be named by the letter it types in the current layout instead of by its position.
+    /// </summary>
+    public static bool KeyDown(string code, int platformKey, ModifierKeys modifiers, bool isRepeat, string? key)
+        => BrowserPlatformHost.Active?.KeyDown(code, platformKey, modifiers, isRepeat, key) == true;
 
     public static bool KeyUp(string code, int platformKey, ModifierKeys modifiers)
-        => BrowserPlatformHost.Active?.KeyUp(code, platformKey, modifiers) == true;
+        => KeyUp(code, platformKey, modifiers, key: null);
+
+    /// <summary>Routes a key release; <paramref name="key"/> as for <see cref="KeyDown(string, int, ModifierKeys, bool, string?)"/>.</summary>
+    public static bool KeyUp(string code, int platformKey, ModifierKeys modifiers, string? key)
+        => BrowserPlatformHost.Active?.KeyUp(code, platformKey, modifiers, key) == true;
 
     /// <summary>Starts an IME composition; the control shows the pre-edit until it ends.</summary>
     public static void CompositionStart() => BrowserPlatformHost.Active?.CompositionStart();

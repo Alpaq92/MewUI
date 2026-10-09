@@ -612,18 +612,18 @@ internal sealed class BrowserWindowBackend : IWindowBackend
         WindowInputRouter.PointerCancel(Window);
     }
 
-    internal bool KeyDown(string code, int platformKey, ModifierKeys modifiers, bool isRepeat)
+    internal bool KeyDown(string code, int platformKey, ModifierKeys modifiers, bool isRepeat, string? key)
     {
         if (!_shown || _disposed) return false;
-        var args = new KeyEventArgs(BrowserKeyMap.Map(code), platformKey, modifiers, isRepeat);
+        var args = new KeyEventArgs(BrowserKeyMap.Map(code, key), platformKey, modifiers, isRepeat);
         WindowInputRouter.KeyDown(Window, args);
         return args.Handled;
     }
 
-    internal bool KeyUp(string code, int platformKey, ModifierKeys modifiers)
+    internal bool KeyUp(string code, int platformKey, ModifierKeys modifiers, string? key)
     {
         if (!_shown || _disposed) return false;
-        var args = new KeyEventArgs(BrowserKeyMap.Map(code), platformKey, modifiers);
+        var args = new KeyEventArgs(BrowserKeyMap.Map(code, key), platformKey, modifiers);
         WindowInputRouter.KeyUp(Window, args);
         return args.Handled;
     }
@@ -727,8 +727,8 @@ internal sealed class BrowserWindowBackend : IWindowBackend
         {
             // A replacement by nothing is a deletion of what was just selected, which is what the
             // control does for a backspace over a selection.
-            KeyDown("Backspace", 0, ModifierKeys.None, isRepeat: false);
-            KeyUp("Backspace", 0, ModifierKeys.None);
+            KeyDown("Backspace", 0, ModifierKeys.None, isRepeat: false, key: null);
+            KeyUp("Backspace", 0, ModifierKeys.None, key: null);
         }
     }
 

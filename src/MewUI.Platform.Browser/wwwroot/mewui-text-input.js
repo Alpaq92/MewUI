@@ -199,6 +199,7 @@ export function createTextInputBridge({ app, canvas, field, wake }) {
             if (CARET_KEYS.has(event.code)) {
                 pendingCaretKey = {
                     code: event.code,
+                    key: event.key,
                     keyCode: event.keyCode || 0,
                     modifiers: modifiersOf(event),
                 };
@@ -261,8 +262,8 @@ export function createTextInputBridge({ app, canvas, field, wake }) {
         if (pendingCaretKey !== null) {
             const key = pendingCaretKey;
             pendingCaretKey = null;
-            app.KeyDown(key.code, key.keyCode, key.modifiers, false);
-            app.KeyUp(key.code, key.keyCode, key.modifiers);
+            app.KeyDown(key.code, key.keyCode, key.modifiers, false, key.key);
+            app.KeyUp(key.code, key.keyCode, key.modifiers, key.key);
             // The caret left the committed text, so there is nothing there to convert and the
             // mirror follows the control again.
             sync();

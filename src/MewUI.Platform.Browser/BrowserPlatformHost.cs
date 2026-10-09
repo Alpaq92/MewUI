@@ -265,11 +265,11 @@ internal sealed class BrowserPlatformHost : IPlatformHost
     internal void PointerLeave() => RoutePointer(() => { _window?.PointerLeave(); return false; });
     internal void PointerCancel() => RoutePointer(() => { _window?.PointerCancel(); return false; });
 
-    internal bool KeyDown(string code, int platformKey, ModifierKeys modifiers, bool isRepeat)
-        => RoutePointer(() => _window?.KeyDown(code, platformKey, modifiers, isRepeat) == true);
+    internal bool KeyDown(string code, int platformKey, ModifierKeys modifiers, bool isRepeat, string? key)
+        => RoutePointer(() => _window?.KeyDown(code, platformKey, modifiers, isRepeat, key) == true);
 
-    internal bool KeyUp(string code, int platformKey, ModifierKeys modifiers)
-        => RoutePointer(() => _window?.KeyUp(code, platformKey, modifiers) == true);
+    internal bool KeyUp(string code, int platformKey, ModifierKeys modifiers, string? key)
+        => RoutePointer(() => _window?.KeyUp(code, platformKey, modifiers, key) == true);
 
     internal void CompositionStart() => RoutePointer(() => { _window?.CompositionStart(); return false; });
 
