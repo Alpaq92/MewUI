@@ -439,8 +439,8 @@ textInput.addEventListener('paste', event => {
 
     wake();
     app.SetClipboardText(text);
-    app.KeyDown('KeyV', 86, modifiers, false);
-    app.KeyUp('KeyV', 86, modifiers);
+    app.KeyDown('KeyV', 86, modifiers, false, 'v');
+    app.KeyUp('KeyV', 86, modifiers, 'v');
 });
 
 window.addEventListener('keydown', event => {
@@ -456,7 +456,7 @@ window.addEventListener('keydown', event => {
         return;
     }
 
-    const handled = app.KeyDown(event.code, event.keyCode || 0, modifiersOf(event), event.repeat);
+    const handled = app.KeyDown(event.code, event.keyCode || 0, modifiersOf(event), event.repeat, event.key);
     // A key the app took must not also edit the field, and Tab or an arrow would otherwise move
     // focus out of the canvas or scroll the page.
     if (handled || event.code === 'Tab' || event.code.startsWith('Arrow')) {
@@ -470,7 +470,7 @@ window.addEventListener('keydown', event => {
 window.addEventListener('keyup', event => {
     wake();
     if (!textInputBridge.composing && event.keyCode !== 229 && event.key !== 'Process') {
-        app.KeyUp(event.code, event.keyCode || 0, modifiersOf(event));
+        app.KeyUp(event.code, event.keyCode || 0, modifiersOf(event), event.key);
     }
 });
 
