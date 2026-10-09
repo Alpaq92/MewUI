@@ -38,6 +38,9 @@ internal abstract class RealInput
     /// <summary>Presses or releases the Space key for the active window.</summary>
     public abstract Task SpaceAsync(Window window, bool isDown);
 
+    /// <summary>Types Ctrl+. on the active window: the period key pressed and released while Control is held.</summary>
+    public abstract Task ControlPeriodAsync(Window window);
+
     /// <summary>Makes the window the platform's active window.</summary>
     public abstract Task ActivateAsync(Window window);
 
@@ -78,6 +81,8 @@ internal sealed class Win32Input : RealInput
     private const uint MOUSEEVENTF_LEFTUP = 0x0004;
     private const uint KEYEVENTF_KEYUP = 0x0002;
     private const byte VK_SPACE = 0x20;
+    private const byte VK_CONTROL = 0x11;
+    private const byte VK_OEM_PERIOD = 0xBE;
     private const int SM_CXSCREEN = 0;
     private const int SM_CYSCREEN = 1;
 
@@ -116,6 +121,20 @@ internal sealed class Win32Input : RealInput
         }
 
         keybd_event(VK_SPACE, 0, isDown ? 0 : KEYEVENTF_KEYUP, 0);
+        await Task.Delay(SETTLE_MS);
+    }
+
+    public override async Task ControlPeriodAsync(Window window)
+    {
+        if (!IsOwnWindow(GetForegroundWindow()))
+        {
+            Assert.Inconclusive("The foreground window belongs to another application; the keys were not sent.");
+        }
+
+        keybd_event(VK_CONTROL, 0, 0, 0);
+        keybd_event(VK_OEM_PERIOD, 0, 0, 0);
+        keybd_event(VK_OEM_PERIOD, 0, KEYEVENTF_KEYUP, 0);
+        keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0);
         await Task.Delay(SETTLE_MS);
     }
 
@@ -235,6 +254,8 @@ internal sealed class X11Input : RealInput
 {
     private const uint LEFT_BUTTON = 1;
     private const nuint XK_SPACE = 0x20;
+    private const nuint XK_PERIOD = 0x2E;
+    private const nuint XK_CONTROL_LEFT = 0xFFE3;
 
     private readonly nint _display = XOpenDisplay(0);
     // Windows of another client: a managed one that takes the focus, and an override-redirect one a click does not focus.
@@ -271,6 +292,18 @@ internal sealed class X11Input : RealInput
     {
         uint keycode = XKeysymToKeycode(_display, XK_SPACE);
         XTestFakeKeyEvent(_display, keycode, isDown, 0);
+        XFlush(_display);
+        await Task.Delay(SETTLE_MS);
+    }
+
+    public override async Task ControlPeriodAsync(Window window)
+    {
+        uint control = XKeysymToKeycode(_display, XK_CONTROL_LEFT);
+        uint period = XKeysymToKeycode(_display, XK_PERIOD);
+        XTestFakeKeyEvent(_display, control, true, 0);
+        XTestFakeKeyEvent(_display, period, true, 0);
+        XTestFakeKeyEvent(_display, period, false, 0);
+        XTestFakeKeyEvent(_display, control, false, 0);
         XFlush(_display);
         await Task.Delay(SETTLE_MS);
     }
@@ -434,6 +467,8 @@ internal sealed class MacInput : RealInput
     private const nuint KEY_DOWN = 10;
     private const nuint KEY_UP = 11;
     private const ushort KVK_SPACE = 49;
+    private const ushort KVK_PERIOD = 0x2F;
+    private const nuint CONTROL_FLAG = 1 << 18;
 
     private Window? _keyWindow;
 
@@ -468,6 +503,21 @@ internal sealed class MacInput : RealInput
             Sel("keyEventWithType:location:modifierFlags:timestamp:windowNumber:context:characters:charactersIgnoringModifiers:isARepeat:keyCode:"),
             isDown ? KEY_DOWN : KEY_UP, new NSPoint(0, 0), 0, Uptime(), WindowNumber(window), 0, characters, characters, false, KVK_SPACE);
         SendPost(App(), Sel("postEvent:atStart:"), ev, false);
+        await Task.Delay(SETTLE_MS);
+    }
+
+    public override async Task ControlPeriodAsync(Window window)
+    {
+        nint characters = SendString(objc_getClass("NSString"), Sel("stringWithUTF8String:"), ".");
+        foreach (nuint type in new[] { KEY_DOWN, KEY_UP })
+        {
+            nint ev = SendKeyEvent(
+                objc_getClass("NSEvent"),
+                Sel("keyEventWithType:location:modifierFlags:timestamp:windowNumber:context:characters:charactersIgnoringModifiers:isARepeat:keyCode:"),
+                type, new NSPoint(0, 0), CONTROL_FLAG, Uptime(), WindowNumber(window), 0, characters, characters, false, KVK_PERIOD);
+            SendPost(App(), Sel("postEvent:atStart:"), ev, false);
+        }
+
         await Task.Delay(SETTLE_MS);
     }
 
