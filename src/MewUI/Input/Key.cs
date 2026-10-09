@@ -1,8 +1,13 @@
 namespace Aprillz.MewUI;
 
 /// <summary>
-/// Cross-platform key identifiers (independent from Win32 virtual-key codes).
+/// Identifies a key by the role it has on a US QWERTY keyboard, independent of the platform.
 /// </summary>
+/// <remarks>
+/// A key that types a Latin letter, a digit or ASCII punctuation in the current layout is that key. A key that types
+/// none of those, as on a Cyrillic layout, is the key at the same position on a US QWERTY keyboard, so a shortcut such
+/// as Ctrl+Z works on every layout. Punctuation keys are named for their unshifted US character.
+/// </remarks>
 #pragma warning disable CS1591
 public enum Key
 {
@@ -105,4 +110,18 @@ public enum Key
     Multiply,
     Divide,
     Decimal,
+
+    Backquote,
+    Minus,
+    Equal,
+    BracketLeft,
+    BracketRight,
+    Backslash,
+    Semicolon,
+    Quote,
+    Comma,
+    Period,
+    Slash,
+    IntlBackslash,
+    ContextMenu,
 }

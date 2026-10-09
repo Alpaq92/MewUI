@@ -101,6 +101,8 @@ public class PlatformConventions
         Key.End => "End",
         Key.PageUp => "PgUp",
         Key.PageDown => "PgDn",
-        _ => key.ToString(),
+        Key.IntlBackslash => "\\",
+        Key.ContextMenu => "Menu",
+        _ => Input.KeyCharacters.TryGetPunctuation(key, out char punctuation) ? punctuation.ToString() : key.ToString(),
     };
 }
