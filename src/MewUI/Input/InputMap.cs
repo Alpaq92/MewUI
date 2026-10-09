@@ -1,19 +1,24 @@
 namespace Aprillz.MewUI;
 
 /// <summary>
-/// Maps key gestures to commands (or local callbacks) for one context level; keyboard dispatch
+/// Maps key gestures and key sequences to commands (or local callbacks) for one context level; keyboard dispatch
 /// consults maps from the focused element outward and the nearest map claiming a gesture wins.
 /// </summary>
 /// <remarks>
-/// A command's first mapped gesture is its primary/display gesture; the rest are alternative
-/// execution gestures. Mapping a command again with the same data replaces those gestures, and
-/// mapping a gesture already claimed by another entry moves that gesture to the new entry (runtime
-/// remap semantics). Mutation is a UI-thread operation.
+/// A command's first mapped sequence is its primary/display sequence; the rest are alternative
+/// execution sequences. Mapping a command again with the same data replaces those sequences, and
+/// mapping a sequence already claimed by another entry moves it to the new entry (runtime
+/// remap semantics). Within one map a single gesture runs before any longer sequence that starts with it,
+/// so that longer sequence is unreachable there. Mutation is a UI-thread operation.
 /// </remarks>
 public sealed class InputMap
 {
-    private Dictionary<KeyGesture, InputMapEntry>? _byResolvedGesture;
-    private Dictionary<Command, List<KeyGesture>>? _gesturesByCommand;
+    private Dictionary<KeySequence, InputMapEntry>? _byResolvedSequence;
+    private Dictionary<Command, List<KeySequence>>? _sequencesByCommand;
+
+    // Every proper prefix of a mapped sequence of two or more strokes; rebuilt on the first lookup after a change.
+    private HashSet<KeySequence>? _resolvedPrefixes;
+    private bool _prefixesStale;
 
     /// <summary>
     /// Raised when the map's gesture semantics change, so shortcut presentation can re-resolve.
@@ -21,78 +26,78 @@ public sealed class InputMap
     public event Action? Changed;
 
     /// <summary>
-    /// Maps the given gestures to a command; the first gesture becomes the primary/display gesture.
+    /// Maps the given sequences to a command; the first becomes the primary/display sequence.
     /// </summary>
-    public InputMap Map(Command command, KeyGesture primaryGesture, params KeyGesture[] alternativeGestures)
-        => Map(command, data: null, primaryGesture, alternativeGestures);
+    public InputMap Map(Command command, KeySequence primarySequence, params KeySequence[] alternativeSequences)
+        => Map(command, data: null, primarySequence, alternativeSequences);
 
     /// <summary>
-    /// Maps the given gestures to a command invoked with <paramref name="data"/> as its argument, so
-    /// one command can answer to several gestures that differ only in the value they pass.
+    /// Maps the given sequences to a command invoked with <paramref name="data"/> as its argument, so
+    /// one command can answer to several sequences that differ only in the value they pass.
     /// </summary>
-    public InputMap Map(Command command, object? data, KeyGesture primaryGesture, params KeyGesture[] alternativeGestures)
+    public InputMap Map(Command command, object? data, KeySequence primarySequence, params KeySequence[] alternativeSequences)
     {
         ArgumentNullException.ThrowIfNull(command);
-        ArgumentNullException.ThrowIfNull(alternativeGestures);
-        ValidateGesture(primaryGesture);
-        foreach (var gesture in alternativeGestures)
+        ArgumentNullException.ThrowIfNull(alternativeSequences);
+        ValidateSequence(primarySequence, nameof(primarySequence));
+        foreach (var sequence in alternativeSequences)
         {
-            ValidateGesture(gesture);
+            ValidateSequence(sequence, nameof(alternativeSequences));
         }
 
         RemoveCommandCore(command, data);
 
-        var gestures = new List<KeyGesture>(1 + alternativeGestures.Length) { primaryGesture };
-        foreach (var gesture in alternativeGestures)
+        var sequences = new List<KeySequence>(1 + alternativeSequences.Length) { primarySequence };
+        foreach (var sequence in alternativeSequences)
         {
-            if (!gestures.Contains(gesture))
+            if (!sequences.Contains(sequence))
             {
-                gestures.Add(gesture);
+                sequences.Add(sequence);
             }
         }
 
-        var byGesture = _byResolvedGesture ??= new Dictionary<KeyGesture, InputMapEntry>(capacity: 4);
-        var byCommand = _gesturesByCommand ??= new Dictionary<Command, List<KeyGesture>>(capacity: 4);
+        var bySequence = _byResolvedSequence ??= new Dictionary<KeySequence, InputMapEntry>(capacity: 4);
+        var byCommand = _sequencesByCommand ??= new Dictionary<Command, List<KeySequence>>(capacity: 4);
 
         var entry = new InputMapEntry(command, data);
-        foreach (var gesture in gestures)
+        foreach (var sequence in sequences)
         {
-            ClaimGesture(gesture);
-            byGesture[gesture.Resolve()] = entry;
+            ClaimSequence(sequence);
+            bySequence[sequence.Resolve()] = entry;
         }
 
-        // Gestures mapped with other data stay, so the command's list accumulates across values.
+        // Sequences mapped with other data stay, so the command's list accumulates across values.
         if (byCommand.TryGetValue(command, out var existing))
         {
-            existing.AddRange(gestures);
+            existing.AddRange(sequences);
         }
         else
         {
-            byCommand[command] = gestures;
+            byCommand[command] = sequences;
         }
 
-        Changed?.Invoke();
+        OnChanged();
         return this;
     }
 
     /// <summary>
-    /// Maps a gesture to a local callback that is not part of command presentation.
+    /// Maps a sequence to a local callback that is not part of command presentation.
     /// </summary>
-    public InputMap Map(KeyGesture gesture, Action execute, Func<bool>? canExecute = null)
+    public InputMap Map(KeySequence sequence, Action execute, Func<bool>? canExecute = null)
     {
         ArgumentNullException.ThrowIfNull(execute);
-        ValidateGesture(gesture);
+        ValidateSequence(sequence, nameof(sequence));
 
-        ClaimGesture(gesture);
+        ClaimSequence(sequence);
 
-        var byGesture = _byResolvedGesture ??= new Dictionary<KeyGesture, InputMapEntry>(capacity: 4);
-        byGesture[gesture.Resolve()] = new InputMapEntry(execute, canExecute);
-        Changed?.Invoke();
+        var bySequence = _byResolvedSequence ??= new Dictionary<KeySequence, InputMapEntry>(capacity: 4);
+        bySequence[sequence.Resolve()] = new InputMapEntry(execute, canExecute);
+        OnChanged();
         return this;
     }
 
     /// <summary>
-    /// Removes all gestures mapped to the command; returns false when none were mapped.
+    /// Removes all sequences mapped to the command; returns false when none were mapped.
     /// </summary>
     public bool Unmap(Command command)
     {
@@ -103,50 +108,73 @@ public sealed class InputMap
             return false;
         }
 
-        Changed?.Invoke();
+        OnChanged();
         return true;
     }
 
     /// <summary>
-    /// Removes the mapping for a single gesture; returns false when the gesture was not mapped.
+    /// Removes the mapping for a single sequence; returns false when it was not mapped.
     /// </summary>
-    public bool Unmap(KeyGesture gesture)
+    public bool Unmap(KeySequence sequence)
     {
-        if (!ClaimGesture(gesture))
+        if (sequence.Length == 0 || !ClaimSequence(sequence))
         {
             return false;
         }
 
-        Changed?.Invoke();
+        OnChanged();
         return true;
     }
 
     /// <summary>
-    /// Gets the command's primary gesture in this map only (no hierarchy resolution).
+    /// Gets the command's primary gesture in this map only (no hierarchy resolution); false when the command is not
+    /// mapped or its primary mapping is a sequence of more than one stroke.
     /// </summary>
     public bool TryGetPrimaryGesture(Command command, out KeyGesture gesture)
         => TryGetPrimaryGesture(command, data: null, out gesture);
 
     /// <summary>
-    /// Gets the primary gesture of the command's mapping for <paramref name="data"/> in this map only.
+    /// Gets the primary gesture of the command's mapping for <paramref name="data"/> in this map only; false when
+    /// there is none or it is a sequence of more than one stroke.
     /// </summary>
     public bool TryGetPrimaryGesture(Command command, object? data, out KeyGesture gesture)
     {
+        if (TryGetPrimarySequence(command, data, out var sequence) && sequence.IsSingle)
+        {
+            gesture = sequence[0];
+            return true;
+        }
+
+        gesture = default;
+        return false;
+    }
+
+    /// <summary>
+    /// Gets the command's primary sequence in this map only (no hierarchy resolution).
+    /// </summary>
+    public bool TryGetPrimarySequence(Command command, out KeySequence sequence)
+        => TryGetPrimarySequence(command, data: null, out sequence);
+
+    /// <summary>
+    /// Gets the primary sequence of the command's mapping for <paramref name="data"/> in this map only.
+    /// </summary>
+    public bool TryGetPrimarySequence(Command command, object? data, out KeySequence sequence)
+    {
         ArgumentNullException.ThrowIfNull(command);
 
-        if (_gesturesByCommand != null && _gesturesByCommand.TryGetValue(command, out var gestures))
+        if (_sequencesByCommand != null && _sequencesByCommand.TryGetValue(command, out var sequences))
         {
-            foreach (var candidate in gestures)
+            foreach (var candidate in sequences)
             {
                 if (TryGetEntry(candidate.Resolve(), out var entry) && Equals(entry.Data, data))
                 {
-                    gesture = candidate;
+                    sequence = candidate;
                     return true;
                 }
             }
         }
 
-        gesture = default;
+        sequence = default;
         return false;
     }
 
@@ -155,18 +183,18 @@ public sealed class InputMap
     /// </summary>
     public void Clear()
     {
-        bool hadEntries = _byResolvedGesture != null && _byResolvedGesture.Count > 0;
-        _byResolvedGesture?.Clear();
-        _gesturesByCommand?.Clear();
+        bool hadEntries = _byResolvedSequence != null && _byResolvedSequence.Count > 0;
+        _byResolvedSequence?.Clear();
+        _sequencesByCommand?.Clear();
         if (hadEntries)
         {
-            Changed?.Invoke();
+            OnChanged();
         }
     }
 
-    internal bool TryGetEntry(KeyGesture resolvedGesture, out InputMapEntry entry)
+    internal bool TryGetEntry(KeySequence resolvedSequence, out InputMapEntry entry)
     {
-        if (_byResolvedGesture != null && _byResolvedGesture.TryGetValue(resolvedGesture, out var found))
+        if (_byResolvedSequence != null && _byResolvedSequence.TryGetValue(resolvedSequence, out var found))
         {
             entry = found;
             return true;
@@ -176,36 +204,76 @@ public sealed class InputMap
         return false;
     }
 
-    internal IReadOnlyList<KeyGesture>? GetGestures(Command command)
-        => _gesturesByCommand != null && _gesturesByCommand.TryGetValue(command, out var gestures) ? gestures : null;
+    /// <summary>
+    /// What the strokes pressed so far mean to this map: a mapping, the start of a longer one, or nothing.
+    /// </summary>
+    internal InputMapMatch Match(KeySequence resolvedSequence, out InputMapEntry entry)
+    {
+        if (TryGetEntry(resolvedSequence, out entry))
+        {
+            return InputMapMatch.Exact;
+        }
 
-    internal bool IsEmpty => _byResolvedGesture == null || _byResolvedGesture.Count == 0;
+        return IsPrefix(resolvedSequence) ? InputMapMatch.Prefix : InputMapMatch.None;
+    }
+
+    internal IReadOnlyList<KeySequence>? GetSequences(Command command)
+        => _sequencesByCommand != null && _sequencesByCommand.TryGetValue(command, out var sequences) ? sequences : null;
+
+    internal bool IsEmpty => _byResolvedSequence == null || _byResolvedSequence.Count == 0;
+
+    private bool IsPrefix(KeySequence resolvedSequence)
+    {
+        if (_prefixesStale)
+        {
+            _prefixesStale = false;
+            _resolvedPrefixes?.Clear();
+            if (_byResolvedSequence != null)
+            {
+                foreach (var mapped in _byResolvedSequence.Keys)
+                {
+                    for (int count = 1; count < mapped.Length; count++)
+                    {
+                        (_resolvedPrefixes ??= new HashSet<KeySequence>()).Add(mapped.Prefix(count));
+                    }
+                }
+            }
+        }
+
+        return _resolvedPrefixes != null && _resolvedPrefixes.Contains(resolvedSequence);
+    }
+
+    private void OnChanged()
+    {
+        _prefixesStale = true;
+        Changed?.Invoke();
+    }
 
     /// <summary>
-    /// Removes any existing entry for the gesture (runtime remap steals it from its previous
+    /// Removes any existing entry for the sequence (runtime remap steals it from its previous
     /// owner); returns whether an entry was removed.
     /// </summary>
-    private bool ClaimGesture(KeyGesture gesture)
+    private bool ClaimSequence(KeySequence sequence)
     {
-        if (_byResolvedGesture == null)
+        if (_byResolvedSequence == null)
         {
             return false;
         }
 
-        var resolved = gesture.Resolve();
-        if (!_byResolvedGesture.Remove(resolved, out var previous))
+        var resolved = sequence.Resolve();
+        if (!_byResolvedSequence.Remove(resolved, out var previous))
         {
             return false;
         }
 
         if (previous.Command is Command previousCommand &&
-            _gesturesByCommand != null &&
-            _gesturesByCommand.TryGetValue(previousCommand, out var gestures))
+            _sequencesByCommand != null &&
+            _sequencesByCommand.TryGetValue(previousCommand, out var sequences))
         {
-            gestures.RemoveAll(candidate => candidate.Resolve() == resolved);
-            if (gestures.Count == 0)
+            sequences.RemoveAll(candidate => candidate.Resolve() == resolved);
+            if (sequences.Count == 0)
             {
-                _gesturesByCommand.Remove(previousCommand);
+                _sequencesByCommand.Remove(previousCommand);
             }
         }
 
@@ -214,16 +282,16 @@ public sealed class InputMap
 
     private bool RemoveCommandCore(Command command)
     {
-        if (_gesturesByCommand == null || !_gesturesByCommand.Remove(command, out var gestures))
+        if (_sequencesByCommand == null || !_sequencesByCommand.Remove(command, out var sequences))
         {
             return false;
         }
 
-        if (_byResolvedGesture != null)
+        if (_byResolvedSequence != null)
         {
-            foreach (var gesture in gestures)
+            foreach (var sequence in sequences)
             {
-                _byResolvedGesture.Remove(gesture.Resolve());
+                _byResolvedSequence.Remove(sequence.Resolve());
             }
         }
 
@@ -231,44 +299,52 @@ public sealed class InputMap
     }
 
     /// <summary>
-    /// Removes only the command's gestures mapped with <paramref name="data"/>; returns whether any were.
+    /// Removes only the command's sequences mapped with <paramref name="data"/>; returns whether any were.
     /// </summary>
     private bool RemoveCommandCore(Command command, object? data)
     {
-        if (_gesturesByCommand == null || !_gesturesByCommand.TryGetValue(command, out var gestures))
+        if (_sequencesByCommand == null || !_sequencesByCommand.TryGetValue(command, out var sequences))
         {
             return false;
         }
 
         bool removed = false;
-        for (int i = gestures.Count - 1; i >= 0; i--)
+        for (int index = sequences.Count - 1; index >= 0; index--)
         {
-            var resolved = gestures[i].Resolve();
-            if (_byResolvedGesture != null &&
-                _byResolvedGesture.TryGetValue(resolved, out var entry) &&
+            var resolved = sequences[index].Resolve();
+            if (_byResolvedSequence != null &&
+                _byResolvedSequence.TryGetValue(resolved, out var entry) &&
                 Equals(entry.Data, data))
             {
-                _byResolvedGesture.Remove(resolved);
-                gestures.RemoveAt(i);
+                _byResolvedSequence.Remove(resolved);
+                sequences.RemoveAt(index);
                 removed = true;
             }
         }
 
-        if (gestures.Count == 0)
+        if (sequences.Count == 0)
         {
-            _gesturesByCommand.Remove(command);
+            _sequencesByCommand.Remove(command);
         }
 
         return removed;
     }
 
-    private static void ValidateGesture(KeyGesture gesture)
+    private static void ValidateSequence(KeySequence sequence, string parameterName)
     {
-        if (gesture.Key == Key.None)
+        if (sequence.Length == 0)
         {
-            throw new ArgumentException("A key gesture must specify a key.", nameof(gesture));
+            throw new ArgumentException("A key sequence must have at least one stroke.", parameterName);
         }
     }
+}
+
+/// <summary>What a map makes of the strokes pressed so far.</summary>
+internal enum InputMapMatch
+{
+    None,
+    Exact,
+    Prefix,
 }
 
 /// <summary>

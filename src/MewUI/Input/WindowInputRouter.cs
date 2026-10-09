@@ -359,6 +359,11 @@ internal static class WindowInputRouter
             return;
         }
 
+        if (InputMapResolver.TryContinueKeySequence(window, args))
+        {
+            return;
+        }
+
         // A dialog living in this window's surface is not the routed window, so it would never see
         // the preview it relies on for Escape and default-button handling.
         window.ActiveInSurfaceDialog?.RaisePreviewKeyDown(args);
