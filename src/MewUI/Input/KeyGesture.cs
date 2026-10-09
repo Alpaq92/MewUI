@@ -1,3 +1,6 @@
+using System.Diagnostics.CodeAnalysis;
+
+using Aprillz.MewUI.Input;
 using Aprillz.MewUI.Platform;
 
 namespace Aprillz.MewUI;
@@ -23,6 +26,34 @@ public readonly record struct KeyGesture(Key Key, ModifierKeys Modifiers = Modif
 
     /// <inheritdoc/>
     public override string ToString() => ToDisplayString();
+
+    /// <summary>
+    /// Parses the portable form: modifiers (Ctrl, Shift, Alt, Meta, Primary) and a key joined by '+', where the key is
+    /// a <see cref="Key"/> name or the character it types on a US keyboard. Example: "Ctrl+Shift+-".
+    /// </summary>
+    /// <exception cref="FormatException">The text is not a key gesture.</exception>
+    public static KeyGesture Parse(string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        if (!KeyGestureText.TryParseGesture(text, out var gesture))
+        {
+            throw new FormatException($"'{text}' is not a key gesture.");
+        }
+
+        return gesture;
+    }
+
+    /// <summary>Parses the portable form accepted by <see cref="Parse"/>; false when the text is not a key gesture.</summary>
+    public static bool TryParse([NotNullWhen(true)] string? text, out KeyGesture gesture)
+    {
+        if (text == null)
+        {
+            gesture = default;
+            return false;
+        }
+
+        return KeyGestureText.TryParseGesture(text, out gesture);
+    }
 
     /// <summary>
     /// Returns a new KeyGesture with <see cref="ModifierKeys.Primary"/> resolved to the actual platform modifier.

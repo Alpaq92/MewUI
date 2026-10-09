@@ -68,6 +68,30 @@ public class PlatformConventions
     }
 
     /// <summary>
+    /// Formats a <see cref="KeySequence"/> for display (e.g. "Ctrl+K, Ctrl+I").
+    /// </summary>
+    public virtual string FormatSequence(KeySequence sequence)
+    {
+        if (sequence.IsSingle)
+        {
+            return FormatGesture(sequence[0]);
+        }
+
+        var sb = new StringBuilder();
+        for (int index = 0; index < sequence.Length; index++)
+        {
+            if (index > 0)
+            {
+                sb.Append(", ");
+            }
+
+            sb.Append(FormatGesture(sequence[index]));
+        }
+
+        return sb.ToString();
+    }
+
+    /// <summary>
     /// Formats a single key for display.
     /// </summary>
     protected virtual string FormatKey(Key key) => key switch
