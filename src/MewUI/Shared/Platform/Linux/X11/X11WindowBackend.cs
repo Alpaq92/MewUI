@@ -54,6 +54,10 @@ internal sealed class X11WindowBackend : IWindowBackend
     private bool _xdndEnterDispatched;
     private DragDropEffects _xdndLastEffect;
     private X11DropDataObject? _xdndData;
+
+    // Static so a key press allocates no closure for the layout-group lookup.
+    private static readonly Func<nint, int, int, long> _keysymOfGroup =
+        static (display, keycode, group) => NativeX11.XkbKeycodeToKeysym(display, (byte)keycode, group, 0).ToInt64();
     private nint _netWmNameAtom;
     private nint _netWmIconNameAtom;
     private nint _utf8StringAtom;
@@ -1751,7 +1755,7 @@ internal sealed class X11WindowBackend : IWindowBackend
         }
 
         var ks = NativeX11.XLookupKeysym(ref e, 0).ToInt64();
-        var key = MapKeysymToKey(ks);
+        var key = X11KeyMap.Resolve(ks, (int)e.keycode, Display, _keysymOfGroup);
         var args = new KeyEventArgs(key, platformKey: (int)ks, modifiers: GetModifiers(e.state), isRepeat: false);
 
         if (isDown)
@@ -2488,64 +2492,6 @@ internal sealed class X11WindowBackend : IWindowBackend
         // Force layout recalculation with the correct DPI
         Window.PerformLayout();
         NeedsRender = true;
-    }
-
-    private static Key MapKeysymToKey(long keysym)
-    {
-        // Function keys
-        if (keysym is >= 0xFFBE and <= 0xFFD5) // XK_F1..XK_F24
-        {
-            return (Key)((int)Key.F1 + (int)(keysym - 0xFFBE));
-        }
-
-        // Minimal mapping for navigation/editing.
-        // KeySyms for ASCII letters/numbers are their Unicode code points
-        // (e.g. 'A' == 0x41, 'a' == 0x61, '0' == 0x30).
-        if (keysym is >= 0x41 and <= 0x5A)
-        {
-            return (Key)((int)Key.A + (int)(keysym - 0x41));
-        }
-
-        if (keysym is >= 0x61 and <= 0x7A)
-        {
-            return (Key)((int)Key.A + (int)(keysym - 0x61));
-        }
-
-        if (keysym is >= 0x30 and <= 0x39)
-        {
-            return (Key)((int)Key.D0 + (int)(keysym - 0x30));
-        }
-
-        if (keysym is >= 0xFFB0 and <= 0xFFB9) // XK_KP_0..XK_KP_9
-        {
-            return (Key)((int)Key.NumPad0 + (int)(keysym - 0xFFB0));
-        }
-
-        // Keypad keysyms (XK_KP_*) follow the same keys as their main-block counterparts.
-        return keysym switch
-        {
-            0x20 => Key.Space,
-            0xFF08 => Key.Backspace,
-            0xFF09 or 0xFF89 => Key.Tab,
-            0xFF0D or 0xFF8D => Key.Enter,
-            0xFF1B => Key.Escape,
-            0xFF50 or 0xFF95 => Key.Home,
-            0xFF51 or 0xFF96 => Key.Left,
-            0xFF52 or 0xFF97 => Key.Up,
-            0xFF53 or 0xFF98 => Key.Right,
-            0xFF54 or 0xFF99 => Key.Down,
-            0xFF55 or 0xFF9A => Key.PageUp,
-            0xFF56 or 0xFF9B => Key.PageDown,
-            0xFF57 or 0xFF9C => Key.End,
-            0xFF63 or 0xFF9E => Key.Insert,
-            0xFFFF or 0xFF9F => Key.Delete,
-            0xFFAA => Key.Multiply,
-            0xFFAB => Key.Add,
-            0xFFAD => Key.Subtract,
-            0xFFAE => Key.Decimal,
-            0xFFAF => Key.Divide,
-            _ => Key.None
-        };
     }
 
     private static ModifierKeys GetModifiers(uint x11State)
