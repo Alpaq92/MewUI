@@ -304,6 +304,75 @@ new Button()
 editor.InputMap.Map(StandardCommands.Copy, new KeyGesture(Key.Insert, ModifierKeys.Control));
 ```
 
+## 키 시퀀스
+
+`KeySequence`는 차례로 누르는 `KeyGesture`를 한 개에서 네 개까지 담습니다. Ctrl+K를 누른 뒤 Ctrl+I를 누르는 단축키가 여기에 해당합니다. `KeyGesture`는 `KeySequence`로 암시적으로 변환되므로 한 번 누르는 단축키는 지금까지처럼 `KeyGesture`로 씁니다.
+
+```csharp
+window.InputMap.Map(quickInfo, new KeySequence(
+    new KeyGesture(Key.K, ModifierKeys.Primary),
+    new KeyGesture(Key.I, ModifierKeys.Primary)));
+
+window.InputMap.Map(formatDocument, KeySequence.Parse("Primary+E, Primary+D"));
+window.InputMap.Map(toggleComment, KeyGesture.Parse("Primary+/"));
+```
+
+시퀀스의 앞부분에 해당하는 키가 눌리면 창은 그 키를 처리한 것으로 하고 다음 키를 기다립니다. 기다리는 동안 눌린 키는 포커스된 요소로 가지 않고 시퀀스로 갑니다. 다음 키가 시퀀스를 완성하면 명령이 실행되고, 더 긴 시퀀스의 앞부분이면 계속 기다리며, 어느 쪽도 아니면 그 키를 버리고 대기를 끝냅니다. 대기는 마지막 키 뒤 5초가 지나거나 Escape를 누르거나 창이 비활성화되면 끝납니다. 수정키만 누른 것은 키로 세지 않으므로 Ctrl을 누른 채 두 키를 이어 눌러도 되고 뗐다가 다시 눌러도 됩니다.
+
+지금까지 눌린 키는 읽기 전용 속성 `Window.PendingKeySequence`에 있고, 기다리는 중이 아니면 `null`입니다. `MewProperty`이므로 상태 표시줄에 바인딩해 "Ctrl+K를 눌렀습니다. 다음 키를 기다립니다." 같은 안내를 띄울 수 있습니다.
+
+어느 맵이 키를 가져가는지는 한 번 누르는 단축키와 같은 순서로 정해집니다. 포커스에 가장 가까운 `InputMap`이 그 키를 단축키로 갖고 있거나 시퀀스의 앞부분으로 갖고 있으면 그 맵이 이깁니다. 한 맵 안에서 `Ctrl+K`가 그 자체로 명령에 매핑되어 있으면 `Ctrl+K`로 시작하는 시퀀스는 그 맵에서 실행되지 않습니다.
+
+메뉴와 툴팁의 단축키 표시는 시퀀스도 역조회하므로 `Ctrl+K, Ctrl+I`로 나옵니다. 코드에서 읽을 때는 `InputMap.TryGetPrimarySequence`를 씁니다. `TryGetPrimaryGesture`는 주 단축키가 한 번 누르는 것일 때만 `true`를 돌려줍니다.
+
+### 문자열 형식
+
+`KeyGesture.Parse`와 `KeySequence.Parse`는 플랫폼과 무관한 형식을 읽고, `KeySequence.ToString()`은 같은 형식으로 씁니다. 설정 파일에 단축키를 저장할 때 이 형식을 씁니다. 화면에 보일 문자열은 `ToDisplayString()`으로 얻으며 플랫폼 표기를 따릅니다(macOS에서는 `⌘K, ⌘I`).
+
+| 부분 | 쓰는 법 |
+|---|---|
+| 수정키 | `Ctrl`, `Shift`, `Alt`, `Meta`, `Primary`. `+`로 잇습니다 |
+| 키 | `Key` 멤버 이름(`F5`, `Enter`, `Period`) 또는 그 키가 US 자판에서 내는 글자 한 자(`K`, `7`, `.`, `/`, `-`, `=`) |
+| 누름 사이 | 쉼표. `Ctrl+K, Ctrl+I` |
+
+대소문자는 가리지 않습니다. 형식에 맞지 않으면 `Parse`는 `FormatException`을 던지고 `TryParse`는 `false`를 돌려줍니다.
+
+## Key의 뜻
+
+`Key`는 US QWERTY 자판에서 그 키가 맡는 역할을 가리킵니다. 현재 자판 배열이 그 키로 라틴 문자, 숫자, ASCII 구두점을 내면 그 글자의 키이고, 키릴이나 그리스 배열처럼 그런 글자를 내지 않으면 같은 자리가 US 자판에서 내는 키입니다. 그래서 `Ctrl+Z` 같은 단축키는 어느 배열에서나 동작하고, 단축키 문자열은 US 자판 기준으로 씁니다.
+
+구두점 키는 Shift 없이 내는 US 글자로 이름을 붙였습니다.
+
+| `Key` | US 자판 글자 | `Key` | US 자판 글자 |
+|---|---|---|---|
+| `Backquote` | `` ` `` `~` | `Semicolon` | `;` `:` |
+| `Minus` | `-` `_` | `Quote` | `'` `"` |
+| `Equal` | `=` `+` | `Comma` | `,` `<` |
+| `BracketLeft` | `[` `{` | `Period` | `.` `>` |
+| `BracketRight` | `]` `}` | `Slash` | `/` `?` |
+| `Backslash` | `\` `\|` | `IntlBackslash` | ISO 자판에서 왼쪽 Shift 옆에 있는 키 |
+
+`ContextMenu`는 메뉴 키입니다. 숫자 패드의 `Add`, `Subtract`, `Multiply`, `Divide`, `Decimal`은 주 자판의 키와 다른 키입니다. 두 키를 모두 받으려면 대안 제스처로 함께 매핑합니다.
+
+```csharp
+editor.InputMap.Map(toggleComment,
+    new KeyGesture(Key.Slash, ModifierKeys.Primary),
+    new KeyGesture(Key.Divide, ModifierKeys.Primary));
+```
+
+단축키는 수정키가 정확히 같아야 일치합니다. `Ctrl+Shift+=`는 `Ctrl+=`와 다른 단축키입니다.
+
+문자 키는 현재 배열이 내는 글자로 정하고, 라틴 문자를 내지 않는 배열에서는 키의 자리로 정합니다.
+
+`KeyEventArgs.PlatformKey`는 플랫폼이 그 키에 준 코드이고 뜻이 플랫폼마다 다릅니다. 단축키 판별에는 `Key`를 쓰고, `PlatformKey`는 플랫폼 API에 키를 그대로 넘겨야 할 때만 씁니다.
+
+| 플랫폼 | `PlatformKey` |
+|---|---|
+| Windows | 가상 키 코드 |
+| Linux (X11) | 현재 배열의 keysym |
+| macOS | 가상 키 코드 |
+| 브라우저 | `KeyboardEvent.keyCode` |
+
 ## TextBox, ContextMenu, InputMap과 Edit 메뉴
 
 다음 그림은 타입 상속 관계나 실제 visual tree를 나타내지 않습니다. 같은 편집 의미가 여러 UI 진입점에서 어떻게 하나의 명령 실행으로 합쳐지는지 보여 주는 **논리적 구성도**입니다.
