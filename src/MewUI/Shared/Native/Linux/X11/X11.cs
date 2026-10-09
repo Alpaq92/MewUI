@@ -229,6 +229,10 @@ internal static partial class X11
     [LibraryImport(LibraryName)]
     public static partial nint XLookupKeysym(ref XKeyEvent key_event, int index);
 
+    // The keysym a keycode has in one layout group at one shift level, or 0 when it has none.
+    [LibraryImport(LibraryName)]
+    public static partial nint XkbKeycodeToKeysym(nint display, byte keycode, int group, int level);
+
     [LibraryImport(LibraryName)]
     public static unsafe partial int XLookupString(
         ref XKeyEvent event_struct,
