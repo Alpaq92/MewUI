@@ -2813,6 +2813,7 @@ public partial class Window : ContentControl, ILayoutRoundingHost
         if (!isActive)
         {
             EndElementCapture();
+            ClearPendingKeySequence();
         }
 
         // Dialogs living in this surface have no backend of their own to hear about the change.
