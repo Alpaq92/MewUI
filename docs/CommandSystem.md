@@ -304,6 +304,75 @@ new Button()
 editor.InputMap.Map(StandardCommands.Copy, new KeyGesture(Key.Insert, ModifierKeys.Control));
 ```
 
+## Key sequences
+
+A `KeySequence` holds one to four `KeyGesture`s pressed one after another, such as Ctrl+K followed by Ctrl+I. A `KeyGesture` converts implicitly to a `KeySequence`, so a shortcut of one stroke is still written as a `KeyGesture`.
+
+```csharp
+window.InputMap.Map(quickInfo, new KeySequence(
+    new KeyGesture(Key.K, ModifierKeys.Primary),
+    new KeyGesture(Key.I, ModifierKeys.Primary)));
+
+window.InputMap.Map(formatDocument, KeySequence.Parse("Primary+E, Primary+D"));
+window.InputMap.Map(toggleComment, KeyGesture.Parse("Primary+/"));
+```
+
+When a key that starts a sequence is pressed, the window marks it handled and waits for the next key. While it waits, a key press goes to the sequence and not to the focused element. The next key runs the command if it completes a sequence, keeps the window waiting if it continues a longer one, and is dropped if it does neither, which also ends the wait. The wait ends by itself five seconds after the last key, on Escape, and when the window is deactivated. A modifier pressed alone is not counted as a key, so the two keys can be pressed with Ctrl held down throughout or released in between.
+
+The keys pressed so far are in the read-only property `Window.PendingKeySequence`, which is `null` when the window is not waiting. It is a `MewProperty`, so a status bar can bind to it and show a hint such as "Ctrl+K was pressed. Waiting for the next key."
+
+Which map takes a key is decided in the same order as for a shortcut of one stroke. The `InputMap` nearest to the focus that has the key as a shortcut, or as the start of a sequence, wins. Within one map, a sequence that starts with `Ctrl+K` does not run if `Ctrl+K` is itself mapped to a command there.
+
+The shortcut shown in menus and tooltips looks up sequences too, so it reads `Ctrl+K, Ctrl+I`. Code reads it with `InputMap.TryGetPrimarySequence`. `TryGetPrimaryGesture` returns `true` only when the primary shortcut is one stroke.
+
+### Text format
+
+`KeyGesture.Parse` and `KeySequence.Parse` read a format that is the same on every platform, and `KeySequence.ToString()` writes it. Use it to store shortcuts in a settings file. The string to show on screen comes from `ToDisplayString()` and follows the platform's notation (`⌘K, ⌘I` on macOS).
+
+| Part | How it is written |
+|---|---|
+| Modifiers | `Ctrl`, `Shift`, `Alt`, `Meta`, `Primary`, joined with `+` |
+| Key | A `Key` member name (`F5`, `Enter`, `Period`) or the single character the key types on a US keyboard (`K`, `7`, `.`, `/`, `-`, `=`) |
+| Between strokes | A comma: `Ctrl+K, Ctrl+I` |
+
+Case is ignored. For text that does not fit the format, `Parse` throws `FormatException` and `TryParse` returns `false`.
+
+## What Key means
+
+A `Key` names the role a key has on a US QWERTY keyboard. A key that types a Latin letter, a digit, or ASCII punctuation in the current layout is the key for that character. A key that types none of those, as on a Cyrillic or Greek layout, is the key at the same position on a US keyboard. A shortcut such as `Ctrl+Z` therefore works on every layout, and shortcut strings are written for a US keyboard.
+
+Punctuation keys are named for the US character they type without Shift.
+
+| `Key` | US characters | `Key` | US characters |
+|---|---|---|---|
+| `Backquote` | `` ` `` `~` | `Semicolon` | `;` `:` |
+| `Minus` | `-` `_` | `Quote` | `'` `"` |
+| `Equal` | `=` `+` | `Comma` | `,` `<` |
+| `BracketLeft` | `[` `{` | `Period` | `.` `>` |
+| `BracketRight` | `]` `}` | `Slash` | `/` `?` |
+| `Backslash` | `\` `\|` | `IntlBackslash` | The key next to the left Shift on an ISO keyboard |
+
+`ContextMenu` is the menu key. The keypad's `Add`, `Subtract`, `Multiply`, `Divide`, and `Decimal` are different keys from those on the main block. To accept both, map them together as alternative gestures.
+
+```csharp
+editor.InputMap.Map(toggleComment,
+    new KeyGesture(Key.Slash, ModifierKeys.Primary),
+    new KeyGesture(Key.Divide, ModifierKeys.Primary));
+```
+
+A shortcut matches only when the modifiers are exactly the same. `Ctrl+Shift+=` is a different shortcut from `Ctrl+=`.
+
+A letter key is decided by the character the current layout types, and by the key's position on a layout that types no Latin letters.
+
+`KeyEventArgs.PlatformKey` is the code the platform gave the key, and its meaning differs by platform. Use `Key` to recognise shortcuts, and `PlatformKey` only to pass a key on to a platform API unchanged.
+
+| Platform | `PlatformKey` |
+|---|---|
+| Windows | Virtual-key code |
+| Linux (X11) | Keysym in the current layout |
+| macOS | Virtual key code |
+| Browser | `KeyboardEvent.keyCode` |
+
 ## TextBox, ContextMenu, InputMap, and the Edit menu
 
 The diagram below is neither a type hierarchy nor a visual tree. It is a **logical composition** showing how one editing meaning reached from several entry points collapses into a single command execution.
