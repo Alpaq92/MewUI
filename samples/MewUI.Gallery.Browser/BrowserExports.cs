@@ -81,12 +81,12 @@ internal static partial class BrowserExports
     internal static void PointerCancel() => BrowserPlatform.PointerCancel();
 
     [JSExport]
-    internal static bool KeyDown(string code, int platformKey, int modifiers, bool isRepeat)
-        => BrowserPlatform.KeyDown(code, platformKey, (ModifierKeys)modifiers, isRepeat);
+    internal static bool KeyDown(string code, int platformKey, int modifiers, bool isRepeat, string? key)
+        => BrowserPlatform.KeyDown(code, platformKey, (ModifierKeys)modifiers, isRepeat, key);
 
     [JSExport]
-    internal static bool KeyUp(string code, int platformKey, int modifiers)
-        => BrowserPlatform.KeyUp(code, platformKey, (ModifierKeys)modifiers);
+    internal static bool KeyUp(string code, int platformKey, int modifiers, string? key)
+        => BrowserPlatform.KeyUp(code, platformKey, (ModifierKeys)modifiers, key);
 
     [JSExport]
     internal static void CompositionStart() => BrowserPlatform.CompositionStart();
