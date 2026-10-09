@@ -37,7 +37,8 @@ public class KeyEventArgs
     public Key Key { get; }
 
     /// <summary>
-    /// Gets the platform-specific key code (e.g. Win32 virtual-key).
+    /// Gets the code the platform gave the key. Its meaning differs from platform to platform; <see cref="Key"/> is
+    /// the portable identity.
     /// </summary>
     public int PlatformKey { get; }
 
@@ -60,7 +61,7 @@ public class KeyEventArgs
     /// Initializes a new instance of the <see cref="KeyEventArgs"/> class.
     /// </summary>
     /// <param name="key">Cross-platform key identifier.</param>
-    /// <param name="platformKey">Platform-specific key code (e.g. Win32 virtual-key).</param>
+    /// <param name="platformKey">The code the platform gave the key.</param>
     /// <param name="modifiers">Modifier keys pressed.</param>
     /// <param name="isRepeat">Whether this is an auto-repeat event.</param>
     public KeyEventArgs(Key key, int platformKey, ModifierKeys modifiers = ModifierKeys.None, bool isRepeat = false)
