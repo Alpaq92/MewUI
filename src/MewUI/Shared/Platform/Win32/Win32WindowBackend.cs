@@ -2822,7 +2822,7 @@ internal sealed class Win32WindowBackend : IWindowBackend
         }
     }
 
-    private static Key MapKey(int vk)
+    internal static Key MapKey(int vk)
     {
         // Function keys
         if (vk is >= VirtualKeys.VK_F1 and <= VirtualKeys.VK_F24)
@@ -2873,6 +2873,20 @@ internal sealed class Win32WindowBackend : IWindowBackend
             VirtualKeys.VK_MULTIPLY => Key.Multiply,
             VirtualKeys.VK_DIVIDE => Key.Divide,
             VirtualKeys.VK_DECIMAL => Key.Decimal,
+
+            VirtualKeys.VK_OEM_3 => Key.Backquote,
+            VirtualKeys.VK_OEM_MINUS => Key.Minus,
+            VirtualKeys.VK_OEM_PLUS => Key.Equal,
+            VirtualKeys.VK_OEM_4 => Key.BracketLeft,
+            VirtualKeys.VK_OEM_6 => Key.BracketRight,
+            VirtualKeys.VK_OEM_5 => Key.Backslash,
+            VirtualKeys.VK_OEM_1 => Key.Semicolon,
+            VirtualKeys.VK_OEM_7 => Key.Quote,
+            VirtualKeys.VK_OEM_COMMA => Key.Comma,
+            VirtualKeys.VK_OEM_PERIOD => Key.Period,
+            VirtualKeys.VK_OEM_2 => Key.Slash,
+            VirtualKeys.VK_OEM_102 => Key.IntlBackslash,
+            VirtualKeys.VK_APPS => Key.ContextMenu,
 
             _ => Key.None
         };
