@@ -28,8 +28,6 @@ public sealed class MenuSeparator : MenuEntry
     public static readonly MenuSeparator Instance = new();
 
     private MenuSeparator() { }
-
-    internal static double MenuSeparatorHeight => 3;
 }
 
 public sealed class MenuItem : MenuEntry

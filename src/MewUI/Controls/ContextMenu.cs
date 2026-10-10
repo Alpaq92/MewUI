@@ -742,18 +742,24 @@ public sealed partial class ContextMenu : Control, IPopupOwner, ICommandSource, 
         return ResolveItemHeight();
     }
 
-    // Odd device-pixel height so a centered 1px separator line keeps equal top and bottom margins at any
-    // scale: an even band cannot center a single pixel symmetrically (e.g. 2/1/1 at 125%).
+    // The margins are rounded to device pixels one by one, so the 1px line sits exactly between them at
+    // any scale instead of taking the leftover of a rounded band.
     private double ResolveSeparatorHeight()
     {
         double dpiScale = GetDpi() / 96.0;
-        int px = Math.Max(1, LayoutRounding.RoundToPixelInt(MenuSeparator.MenuSeparatorHeight, dpiScale));
-        if ((px & 1) == 0)
-        {
-            px = Math.Max(1, px - 1);
-        }
+        var margin = Theme.Metrics.ItemsContainerPadding;
+        int topPx = Math.Max(0, LayoutRounding.RoundToPixelInt(margin.Top, dpiScale));
+        int bottomPx = Math.Max(0, LayoutRounding.RoundToPixelInt(margin.Bottom, dpiScale));
+        return (topPx + 1 + bottomPx) / dpiScale;
+    }
 
-        return px / dpiScale;
+    /// <summary>
+    /// Gets the distance from the top of a separator row to its line, in whole device pixels.
+    /// </summary>
+    internal double ResolveSeparatorLineOffset()
+    {
+        double dpiScale = GetDpi() / 96.0;
+        return Math.Max(0, LayoutRounding.RoundToPixelInt(Theme.Metrics.ItemsContainerPadding.Top, dpiScale)) / dpiScale;
     }
 
     private void UpdateScrollFromBar(double valueDip)
