@@ -177,7 +177,7 @@ internal sealed class MenuRow : Control, IVisualTreeHost
         {
             double dpiScale = GetDpi() / 96.0;
             double onePx = 1.0 / dpiScale;
-            double separatorY = LayoutRounding.RoundToPixel(row.Y + (row.Height - onePx) / 2, dpiScale);
+            double separatorY = LayoutRounding.RoundToPixel(row.Y + menu.ResolveSeparatorLineOffset(), dpiScale);
             context.FillRectangle(new Rect(row.X + 4, separatorY, row.Width - 8, onePx), Theme.Palette.ControlBorder);
             return;
         }
